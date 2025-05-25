@@ -18,7 +18,8 @@ const AdminDashboard = () => {
   const audioRef = useRef(null);
 
   // Server configuration
-  const SERVER_URL = "https://python-server-pearl.vercel.app"; // Replace with your Python server URL
+  const SERVER_URL = "https://python-render-server.onrender.com"
+  //  "https://python-server-pearl.vercel.app"; 
 
   const handleFileSelect = (e) => {
     const selectedFiles = Array.from(e.target.files);

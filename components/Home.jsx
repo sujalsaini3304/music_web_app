@@ -30,7 +30,7 @@ const Home = () => {
   const audioRef = useRef(null);
   const progressRef = useRef(null);
 
-  const SERVER_API = "https://python-server-pearl.vercel.app/api/get/music_data";
+  const SERVER_API = "https://python-render-server.onrender.com/api/get/music_data";
   useEffect(() => {
     const fetchTracks = async () => {
       setLoading(true);
