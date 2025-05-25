@@ -457,7 +457,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-300">Upload Endpoint</span>
-                  <span className="text-white font-mono text-sm">/api/upload-music</span>
+                  <span className="text-white font-mono text-sm">/api/upload/music</span>
                 </div>
               </div>
             </div>
