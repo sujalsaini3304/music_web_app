@@ -10,12 +10,16 @@ import {
   Shuffle,
   Repeat,
   Music,
+  Music2,
 } from "lucide-react";
 import axios from "axios";
 import thumbnailImage from "/music.png";
+import { useNavigate } from "react-router-dom";
+import useFetchTracks from "./useFetchTracks";
+import useStore from "../store";
 
 const Home = () => {
-  const [tracks, setTracks] = useState([]);
+  const navigate = useNavigate();
   const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -26,40 +30,26 @@ const Home = () => {
   const [isShuffled, setIsShuffled] = useState(false);
   const [repeatMode, setRepeatMode] = useState("none"); // none, one, all
   const [loading, setLoading] = useState(true);
+  const [favSong, setFavSong] = useState([]);
+  const { playlists, user_email } = useStore();
+  const { favourite_songs: tracks, setFavourite_songs, login , endpoint} = useStore();
+
+  useEffect(() => {
+    if (!login) {
+      return navigate("/");
+    }
+  }, []);
+
+  useFetchTracks();
+
+  useEffect(() => {
+    if (playlists.length != 0) {
+      setLoading(false);
+    }
+  }, [playlists.length]);
 
   const audioRef = useRef(null);
   const progressRef = useRef(null);
-
-  const SERVER_API = "https://python-render-server.onrender.com/api/get/music_data";
-  useEffect(() => {
-    const fetchTracks = async () => {
-      setLoading(true);
-      const Tracks = [];
-      try {
-        const data = await axios.get(SERVER_API);
-        if (data) {
-          data.data.forEach((element) => {
-            Tracks.push({
-              ...element,
-              id: element._id,
-              url: element.cloudinary_url,
-              thumbnail: thumbnailImage,
-            });
-          });
-        }
-
-        setTimeout(() => {
-          setTracks(Tracks);
-          setLoading(false);
-        }, 1000);
-      } catch (error) {
-        console.error("Error fetching tracks:", error);
-        setLoading(false);
-      }
-    };
-
-    fetchTracks();
-  }, []);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -68,9 +58,16 @@ const Home = () => {
   };
 
   const playTrack = (track) => {
-    if (currentTrack?.id === track.id && isPlaying) {
-      pauseTrack();
+    if (currentTrack?.id === track.id) {
+      // Same track
+      if (isPlaying) {
+        pauseTrack();
+      } else {
+        audioRef.current.play(); // Resume from current time
+        setIsPlaying(true);
+      }
     } else {
+      // New track
       setCurrentTrack(track);
       if (audioRef.current) {
         audioRef.current.src = track.url;
@@ -168,12 +165,37 @@ const Home = () => {
     });
   };
 
-  const filteredTracks = tracks.filter(
-    (track) =>
-      track.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      track.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      track.genre.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    console.log("Fetching favorites for:", user_email, login);
+    if (playlists.length !== 0 && login) {
+      const fetchFavouriteSongs = async () => {
+        try {
+          const response = await axios.get(
+            `${endpoint}/api/music-web-app/fetch/favourite/user/song/`,
+            {
+              params: { email: user_email },
+            }
+          );
+
+          console.log(response.data.Data);
+          const favoriteIds = response.data.Data; // Assuming it's an array of IDs
+
+          // Filter songs from `playlists` using the IDs
+          const filteredTracks = playlists.filter((track) =>
+            favoriteIds.includes(track._id)
+          );
+
+          setFavourite_songs(filteredTracks);
+          setFavSong(filteredTracks);
+          console.log("Favourite tracks:", filteredTracks);
+        } catch (error) {
+          console.error("Error fetching favourite songs:", error);
+        }
+      };
+
+      fetchFavouriteSongs();
+    }
+  }, [playlists, login]);
 
   if (loading) {
     return (
@@ -197,15 +219,45 @@ const Home = () => {
       />
 
       {/* Header */}
-      <div className="bg-black/20 backdrop-blur-sm border-b border-white/10 p-6">
+      <div className="bg-black/20 backdrop-blur-sm border-b border-white/10 p-4 md:p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between flex-col  md:flex-row gap-4 md:gap-4 ">
+          {/* Mobile Header */}
+          <div className="block md:hidden">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0">
+                  <img
+                    className="w-12 h-12"
+                    src="/icon.png"
+                    alt="Music Player Icon"
+                  />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-white ">Music Player</h1>
+                  <p className="text-gray-300 text-sm text-center">
+                    Discover and enjoy your favorite tracks
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate("/search")}
+                className="bg-white/10 backdrop-blur-sm rounded-lg flex items-center text-white font-medium border border-white/20 px-3 py-2 gap-2 hover:bg-white/20 transition-all duration-200 text-sm"
+              >
+                <Music2 className="w-4 h-4" />
+                <span className="hidden xs:inline">Playlist</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop Header */}
+          <div className="hidden md:flex items-center justify-between">
             <div className="flex items-center gap-4">
-              {/* <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
-                <Music className="w-8 h-8 text-white" />
-              </div> */}
-              <div>
-                <img className="w-16 h-16" src="/icon.png" />
+              <div className="flex-shrink-0">
+                <img
+                  className="w-16 h-16"
+                  src="/icon.png"
+                  alt="Music Player Icon"
+                />
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-white">Music Player</h1>
@@ -215,93 +267,77 @@ const Home = () => {
               </div>
             </div>
 
-            {/* Search */}
-            <div className="relative max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search tracks, artists, genres..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
+            {/* Navigation Button */}
+            <button
+              onClick={() => navigate("/search")}
+              className="bg-white/10 backdrop-blur-sm rounded-xl flex justify-center items-center text-white font-semibold border border-white/20 px-4 py-2 gap-2 hover:bg-white/20 transition-all duration-200 transform hover:scale-105"
+            >
+              <span>Go to Playlist</span>
+              <Music2 className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Main */}
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Music List */}
-          <div className="lg:col-span-2">
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-6">
-              <h2 className="text-2xl font-bold text-white mb-6">
-                Your Music Library
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto p-4 md:p-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8">
+          {/* Music List - Takes full width on smaller screens, 2 columns on xl */}
+          <div className="xl:col-span-2">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-4 md:p-6">
+              <h2 className="text-xl md:text-2xl font-bold text-white mb-4 md:mb-6">
+                Favourite Songs
               </h2>
 
-              {filteredTracks.length === 0 ? (
-                <div className="text-center py-12">
-                  <Music className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-400 text-lg">No tracks found</p>
+              {favSong.length === 0 ? (
+                <div className="text-center py-8 md:py-12">
+                  <Music className="w-12 h-12 md:w-16 md:h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-400 text-base md:text-lg">
+                    No favourite songs yet
+                  </p>
+                  <p className="text-gray-500 text-sm mt-2">
+                    Add some songs to your favourites to see them here
+                  </p>
                 </div>
               ) : (
-                <div className=" music-library mt-2 max-h-[400px] overflow-y-auto pr-2  space-y-3">
-                  {filteredTracks.map((track) => (
+                <div className="music-library max-h-[400px] md:max-h-[500px] overflow-y-auto pr-2 space-y-3">
+                  {favSong.map((track) => (
                     <div
-                      key={track.id}
-                      className={`group p-4 rounded-xl border transition-all duration-300 cursor-pointer ${
-                        currentTrack?.id === track.id
-                          ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/50"
+                      key={track._id}
+                      className={`group p-3 md:p-4 rounded-xl border transition-all duration-300 cursor-pointer ${
+                        currentTrack?._id === track._id
+                          ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/50 shadow-lg"
                           : "bg-black/20 border-white/10 hover:bg-white/5 hover:border-white/20"
                       }`}
                       onClick={() => playTrack(track)}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3 md:gap-4">
                         <div className="relative">
                           <img
                             src={track.thumbnail}
                             alt={track.title}
-                            className="w-16 h-16 rounded-lg object-cover"
+                            className="w-12 h-12 md:w-16 md:h-16 rounded-lg object-cover"
                           />
                           <div className="absolute inset-0 bg-black/40 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            {currentTrack?.id === track.id && isPlaying ? (
-                              <Pause className="w-6 h-6 text-white" />
+                            {currentTrack?._id === track._id && isPlaying ? (
+                              <Pause className="w-4 h-4 md:w-6 md:h-6 text-white" />
                             ) : (
-                              <Play className="w-6 h-6 text-white" />
+                              <Play className="w-4 h-4 md:w-6 md:h-6 text-white" />
                             )}
                           </div>
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-semibold truncate">
+                          <h3 className="text-white font-semibold truncate text-sm md:text-base">
                             {track.title}
                           </h3>
-                          <p className="text-gray-300 text-sm">
+                          <p className="text-gray-300 text-xs md:text-sm truncate">
                             {track.artist}
                           </p>
                           <p className="text-gray-400 text-xs">
                             {track.genre} • {formatTime(track.duration)}
                           </p>
                         </div>
-
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleLike(track.id);
-                          }}
-                          className={`transition-colors ${
-                            likedTracks.has(track.id)
-                              ? "text-red-500"
-                              : "text-gray-400 hover:text-red-400"
-                          }`}
-                        >
-                          <Heart
-                            className={`w-5 h-5 ${
-                              likedTracks.has(track.id) ? "fill-current" : ""
-                            }`}
-                          />
-                        </button>
                       </div>
                     </div>
                   ))}
@@ -310,11 +346,11 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Player Controls */}
+          {/* Player Controls & Stats */}
           <div className="space-y-6">
             {/* Now Playing */}
             {currentTrack && (
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-6">
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-4 md:p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">
                   Now Playing
                 </h3>
@@ -322,12 +358,14 @@ const Home = () => {
                   <img
                     src={currentTrack.thumbnail}
                     alt={currentTrack.title}
-                    className="w-48 h-48 rounded-2xl object-cover mx-auto mb-4 shadow-2xl"
+                    className="w-40 h-40 md:w-48 md:h-48 rounded-2xl object-cover mx-auto mb-4 shadow-2xl"
                   />
-                  <h4 className="text-xl font-bold text-white mb-1">
+                  <h4 className="text-lg md:text-xl font-bold text-white mb-1 truncate">
                     {currentTrack.title}
                   </h4>
-                  <p className="text-gray-300 mb-4">{currentTrack.artist}</p>
+                  <p className="text-gray-300 mb-4 truncate">
+                    {currentTrack.artist}
+                  </p>
 
                   {/* Progress Bar */}
                   <div className="mb-4">
@@ -352,7 +390,7 @@ const Home = () => {
                   </div>
 
                   {/* Control Buttons */}
-                  <div className="flex items-center justify-center gap-4 mb-4">
+                  <div className="flex items-center justify-center gap-2 md:gap-4 mb-4">
                     <button
                       onClick={() => setIsShuffled(!isShuffled)}
                       className={`p-2 rounded-lg transition-colors ${
@@ -361,26 +399,26 @@ const Home = () => {
                           : "text-gray-400 hover:text-white"
                       }`}
                     >
-                      <Shuffle className="w-5 h-5" />
+                      <Shuffle className="w-4 h-4 md:w-5 md:h-5" />
                     </button>
 
                     <button
                       onClick={playPreviousTrack}
                       className="p-2 text-gray-400 hover:text-white transition-colors"
                     >
-                      <SkipBack className="w-6 h-6" />
+                      <SkipBack className="w-5 h-5 md:w-6 md:h-6" />
                     </button>
 
                     <button
                       onClick={() =>
                         isPlaying ? pauseTrack() : playTrack(currentTrack)
                       }
-                      className="p-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-105"
+                      className="p-3 md:p-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full hover:from-purple-600 hover:to-pink-600 transition-all transform hover:scale-105"
                     >
                       {isPlaying ? (
-                        <Pause className="w-6 h-6 text-white" />
+                        <Pause className="w-5 h-5 md:w-6 md:h-6 text-white" />
                       ) : (
-                        <Play className="w-6 h-6 text-white ml-1" />
+                        <Play className="w-5 h-5 md:w-6 md:h-6 text-white ml-1" />
                       )}
                     </button>
 
@@ -388,7 +426,7 @@ const Home = () => {
                       onClick={playNextTrack}
                       className="p-2 text-gray-400 hover:text-white transition-colors"
                     >
-                      <SkipForward className="w-6 h-6" />
+                      <SkipForward className="w-5 h-5 md:w-6 md:h-6" />
                     </button>
 
                     <button
@@ -403,13 +441,13 @@ const Home = () => {
                           : "text-gray-400 hover:text-white"
                       }`}
                     >
-                      <Repeat className="w-5 h-5" />
+                      <Repeat className="w-4 h-4 md:w-5 md:h-5" />
                     </button>
                   </div>
 
                   {/* Volume Control */}
                   <div className="flex items-center gap-3">
-                    <Volume2 className="w-5 h-5 text-gray-400" />
+                    <Volume2 className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
                     <input
                       type="range"
                       min="0"
@@ -417,7 +455,7 @@ const Home = () => {
                       step="0.1"
                       value={volume}
                       onChange={handleVolumeChange}
-                      className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                      className="flex-1 h-2 rounded-lg bg-gray-700 appearance-none cursor-pointer slider"
                     />
                   </div>
                 </div>
@@ -425,26 +463,32 @@ const Home = () => {
             )}
 
             {/* Stats */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-6">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-4 md:p-6">
               <h3 className="text-lg font-semibold text-white mb-4">
                 Library Stats
               </h3>
               <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Total Tracks</span>
-                  <span className="text-white font-medium">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300 text-sm md:text-base">
+                    Total Tracks
+                  </span>
+                  <span className="text-white font-medium text-sm md:text-base">
                     {tracks.length}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Liked Songs</span>
-                  <span className="text-red-400 font-medium">
-                    {likedTracks.size}
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300 text-sm md:text-base">
+                    Favourite Songs
+                  </span>
+                  <span className="text-red-400 font-medium text-sm md:text-base">
+                    {favSong.length}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-300">Total Duration</span>
-                  <span className="text-white font-medium">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-300 text-sm md:text-base">
+                    Total Duration
+                  </span>
+                  <span className="text-white font-medium text-sm md:text-base">
                     {formatTime(
                       tracks.reduce((acc, track) => acc + track.duration, 0)
                     )}
@@ -455,14 +499,19 @@ const Home = () => {
           </div>
         </div>
       </div>
-     <div className="pb-6">
-       <div className="text-sm font-bold text-white text-center">
-        &#169; copyright 2025-2050{" "}
-      </div>
-      <div className="text-sm font-bold text-white text-center">
-        Developed by - Sujal Kumar Saini
-      </div>
-     </div>
+
+      {/* Footer */}
+      <footer className="bg-black/20 backdrop-blur-sm border-t border-white/10 mt-8 p-4 md:p-6">
+        <div className="text-center">
+          <div className="text-xs md:text-sm font-bold text-white mb-1">
+            © Copyright 2025-2050
+          </div>
+          <div className="text-xs md:text-sm font-bold text-white">
+            Developed by - Sujal Kumar Saini
+          </div>
+        </div>
+      </footer>
+
       <style>{`
         .slider::-webkit-slider-thumb {
           appearance: none;
@@ -482,17 +531,15 @@ const Home = () => {
           border: none;
         }
 
-
         /* Hide scrollbar but keep scroll functionality */
-       .music-library::-webkit-scrollbar {
-        display: none;
+        .music-library::-webkit-scrollbar {
+          display: none;
         }
 
-       .music-library {
-        -ms-overflow-style: none;  /* IE and Edge */
-        scrollbar-width: none;     /* Firefox */
+        .music-library {
+          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none;     /* Firefox */
         }
-
       `}</style>
     </div>
   );

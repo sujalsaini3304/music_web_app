@@ -8,6 +8,7 @@ import {
   Play,
   Pause,
 } from "lucide-react";
+import useStore from "../store";
 
 const AdminDashboard = () => {
   const [files, setFiles] = useState([]);
@@ -16,10 +17,18 @@ const AdminDashboard = () => {
   const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
   const fileInputRef = useRef(null);
   const audioRef = useRef(null);
+  const { login , endpoint } = useStore();
+  
+  useEffect(()=>{
+    if (!login) {
+      return navigate("/");
+    }
+  },[])
+
 
   // Server configuration
-  const SERVER_URL = "https://python-render-server.onrender.com"
-  //  "https://python-server-pearl.vercel.app"; 
+  const SERVER_URL = `${endpoint}`;
+  //  "https://python-server-pearl.vercel.app";
 
   const handleFileSelect = (e) => {
     const selectedFiles = Array.from(e.target.files);
